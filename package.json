@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
+    "@prisma/adapter-libsql": "^7.9.1",
     "@prisma/client": "^6.19.3",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.31.0",
