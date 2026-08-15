@@ -15,13 +15,14 @@ async function createCycle(formData: FormData) {
   const orderArray = order.split(",").map((s) => s.trim());
   const currentTurn = orderArray[0];
 
-  const cycle = await prisma.cycle.create({
+ const cycle = await prisma.cycle.create({
     data: {
       subject,
       createdBy: "G-00",
       order: JSON.stringify(orderArray),
       currentTurn,
       status: "en_cours",
+      updatedAt: new Date(),
     },
   });
 
