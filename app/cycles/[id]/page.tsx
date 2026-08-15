@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { buildSignature } from "@/lib/protocol";
 
+export const dynamic = "force-dynamic";
+
 async function addContribution(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
