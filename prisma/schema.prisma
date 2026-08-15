@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  gardienId   String   @unique
+  role        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  contributions Contribution[]
+}
+
+model Cycle {
+  id          String   @id @default(cuid())
+  subject     String
+  status      String   @default("en_cours")
+  createdBy   String
+  order       String
+  currentTurn String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contributions Contribution[]
+}
+
+model Contribution {
+  id          String   @id @default(cuid())
+  cycleId     String
+  authorId    String
+  content     String
+  signature   String
+  turnNumber  Int
+  createdAt   DateTime @default(now())
+
+  cycle       Cycle    @relation(fields: [cycleId], references: [id])
+  author      User     @relation(fields: [authorId], references: [id])
+}
