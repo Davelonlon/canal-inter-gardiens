@@ -4,17 +4,23 @@ import { buildSignature } from "@/lib/protocol";
 
 export const dynamic = "force-dynamic";
 
+function getExpectedToken(gardienId: string): string | undefined {
+  const key = `TOKEN_${gardienId.replace("-", "")}`;
+  return process.env[key];
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: cycleId } = await params;
 
-  let body: {
-    gardienId?: string;
-    content?: string;
-  };
+  const authHeader = request.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
 
+  let body: { gardienId?: string; content?: string };
   try {
     body = await request.json();
   } catch {
@@ -30,6 +36,14 @@ export async function POST(
     );
   }
 
+  const expected = getExpectedToken(gardienId);
+  if (!expected || !token || token !== expected) {
+    return NextResponse.json(
+      { error: "Token manquant ou invalide pour ce Gardien" },
+      { status: 401 }
+    );
+  }
+
   const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
   if (!cycle) {
     return NextResponse.json({ error: "Cycle introuvable" }, { status: 404 });
@@ -41,11 +55,12 @@ export async function POST(
     );
   }
 
-  const author = await prisma.user.findUnique({
-    where: { gardienId },
-  });
+  const author = await prisma.user.findUnique({ where: { gardienId } });
   if (!author || !author.isActive) {
-    return NextResponse.json({ error: "Gardien inconnu ou inactif" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Gardien inconnu ou inactif" },
+      { status: 403 }
+    );
   }
 
   const count = await prisma.contribution.count({ where: { cycleId } });
@@ -65,7 +80,6 @@ export async function POST(
     },
   });
 
-  // Avancement du tour (même logique que l'UI)
   const order: string[] = JSON.parse(cycle.order);
   let nextTurn = cycle.currentTurn;
 
