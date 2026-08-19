@@ -36,11 +36,20 @@ async function addContribution(formData: FormData) {
   });
 
   const order: string[] = JSON.parse(cycle.order);
-  const currentIndex = order.indexOf(cycle.currentTurn);
-  const nextTurn =
-    currentIndex >= 0 && currentIndex < order.length - 1
-      ? order[currentIndex + 1]
-      : cycle.currentTurn;
+  let nextTurn = cycle.currentTurn;
+
+  if (authorGardienId === "G-00") {
+    // G-00 publie (avis de sortie) sans clôturer → nouveau tour possible
+    nextTurn = order[0] || "G-00";
+  } else {
+    const currentIndex = order.indexOf(cycle.currentTurn);
+    if (currentIndex >= 0 && currentIndex < order.length - 1) {
+      nextTurn = order[currentIndex + 1];
+    } else {
+      // Dernier de l'ordre → main à G-00 pour avis de sortie / clôture
+      nextTurn = "G-00";
+    }
+  }
 
   await prisma.cycle.update({
     where: { id: cycleId },
@@ -105,11 +114,11 @@ export default async function CyclePage({
                 <span>Tour actuel : <strong>{cycle.currentTurn}</strong></span>
               </div>
 
-              {/* Ordre des tours */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {order.map((gardienId, index) => {
                   const isCurrent = gardienId === cycle.currentTurn;
-                  const isPast = order.indexOf(cycle.currentTurn) > index;
+                  const currentIndex = order.indexOf(cycle.currentTurn);
+                  const isPast = currentIndex > index;
                   return (
                     <span
                       key={gardienId}
@@ -125,6 +134,11 @@ export default async function CyclePage({
                     </span>
                   );
                 })}
+                {cycle.currentTurn === "G-00" && (
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-green-700 text-white font-medium">
+                    G-00 (avis de sortie)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -134,14 +148,20 @@ export default async function CyclePage({
                   <form action={updateCycleStatus}>
                     <input type="hidden" name="cycleId" value={cycle.id} />
                     <input type="hidden" name="status" value="interrompu" />
-                    <button type="submit" className="text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50">
+                    <button
+                      type="submit"
+                      className="text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
                       Interrompre
                     </button>
                   </form>
                   <form action={updateCycleStatus}>
                     <input type="hidden" name="cycleId" value={cycle.id} />
                     <input type="hidden" name="status" value="cloture" />
-                    <button type="submit" className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
+                    <button
+                      type="submit"
+                      className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                    >
                       Clôturer
                     </button>
                   </form>
@@ -150,7 +170,10 @@ export default async function CyclePage({
                 <form action={updateCycleStatus}>
                   <input type="hidden" name="cycleId" value={cycle.id} />
                   <input type="hidden" name="status" value="en_cours" />
-                  <button type="submit" className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50">
+                  <button
+                    type="submit"
+                    className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
+                  >
                     Reprendre
                   </button>
                 </form>
@@ -211,13 +234,22 @@ export default async function CyclePage({
                   required
                   rows={6}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 bg-white"
-                  placeholder="Écris ta contribution ici..."
+                  placeholder={
+                    cycle.currentTurn === "G-00"
+                      ? "Avis de sortie / arbitrage G-00..."
+                      : "Écris ta contribution ici..."
+                  }
                 />
               </div>
               <p className="text-xs text-slate-600">
                 La signature sera générée automatiquement.
+                {cycle.currentTurn === "G-00" &&
+                  " — Après publication, tu peux clôturer le cycle."}
               </p>
-              <button type="submit" className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800">
+              <button
+                type="submit"
+                className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800"
+              >
                 Publier la contribution
               </button>
             </form>
