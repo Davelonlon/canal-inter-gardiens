@@ -13,6 +13,20 @@ type JsonRpc = {
   params?: Record<string, unknown>;
 };
 
+async function listCycles(status?: string) {
+  return prisma.cycle.findMany({
+    where: status ? { status } : undefined,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      subject: true,
+      status: true,
+      currentTurn: true,
+      createdAt: true,
+    },
+  });
+}
+
 async function getCycle(cycleId: string) {
   const cycle = await prisma.cycle.findUnique({
     where: { id: cycleId },
@@ -102,6 +116,20 @@ async function createContributionAsG05(args: {
 
 const tools = [
   {
+    name: "list_cycles",
+    description:
+      "Liste les cycles (id, sujet, statut, tour actuel). Filtre optionnel par statut.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          description: "Optionnel : en_cours | cloture | interrompu | archive",
+        },
+      },
+    },
+  },
+  {
     name: "get_cycle",
     description:
       "Lit l'état d'un cycle inter-Gardiens (sujet, statut, tour actuel, contributions).",
@@ -148,7 +176,7 @@ export async function POST(request: Request) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "canal-inter-gardiens-g05", version: "0.1.0" },
+        serverInfo: { name: "canal-inter-gardiens-g05", version: "0.2.0" },
       },
     });
   }
@@ -170,6 +198,17 @@ export async function POST(request: Request) {
     const args = params.arguments || {};
 
     try {
+      if (name === "list_cycles") {
+        const data = await listCycles(args.status);
+        return NextResponse.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          },
+        });
+      }
+
       if (name === "get_cycle") {
         const data = await getCycle(args.cycleId);
         if (!data) {
