@@ -39,14 +39,12 @@ async function addContribution(formData: FormData) {
   let nextTurn = cycle.currentTurn;
 
   if (authorGardienId === "G-00") {
-    // G-00 publie (avis de sortie) sans clôturer → nouveau tour possible
     nextTurn = order[0] || "G-00";
   } else {
     const currentIndex = order.indexOf(cycle.currentTurn);
     if (currentIndex >= 0 && currentIndex < order.length - 1) {
       nextTurn = order[currentIndex + 1];
     } else {
-      // Dernier de l'ordre → main à G-00 pour avis de sortie / clôture
       nextTurn = "G-00";
     }
   }
@@ -63,13 +61,23 @@ async function updateCycleStatus(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
   const newStatus = formData.get("status") as string;
-  if (!cycleId || !["cloture", "interrompu", "en_cours"].includes(newStatus)) return;
+  if (!cycleId || !["cloture", "interrompu", "en_cours", "archive"].includes(newStatus)) return;
 
   await prisma.cycle.update({
     where: { id: cycleId },
     data: { status: newStatus },
   });
   redirect(`/cycles/${cycleId}`);
+}
+
+async function deleteCycle(formData: FormData) {
+  "use server";
+  const cycleId = formData.get("cycleId") as string;
+  if (!cycleId) return;
+
+  await prisma.contribution.deleteMany({ where: { cycleId } });
+  await prisma.cycle.delete({ where: { id: cycleId } });
+  redirect("/cycles");
 }
 
 export default async function CyclePage({
@@ -95,6 +103,7 @@ export default async function CyclePage({
   });
 
   const order: string[] = JSON.parse(cycle.order);
+  const apiUrl = `https://canal-inter-gardiens-2dhi.vercel.app/api/cycles/${cycle.id}`;
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -107,11 +116,19 @@ export default async function CyclePage({
 
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex justify-between items-start gap-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <h1 className="text-2xl font-bold text-slate-900 mb-2">{cycle.subject}</h1>
-              <div className="flex gap-4 text-sm text-slate-600 mb-3">
+
+              <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-3">
                 <span>Statut : <strong>{cycle.status}</strong></span>
                 <span>Tour actuel : <strong>{cycle.currentTurn}</strong></span>
+              </div>
+
+              <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="text-xs font-medium text-slate-500 mb-1">ID du cycle</div>
+                <code className="text-sm text-slate-900 break-all">{cycle.id}</code>
+                <div className="text-xs text-slate-500 mt-2">API JSON</div>
+                <code className="text-xs text-slate-700 break-all">{apiUrl}</code>
               </div>
 
               <div className="flex flex-wrap gap-2 mt-2">
@@ -142,39 +159,59 @@ export default async function CyclePage({
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 shrink-0">
               {cycle.status === "en_cours" ? (
                 <>
                   <form action={updateCycleStatus}>
                     <input type="hidden" name="cycleId" value={cycle.id} />
                     <input type="hidden" name="status" value="interrompu" />
-                    <button
-                      type="submit"
-                      className="text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"
-                    >
+                    <button type="submit" className="w-full text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50">
                       Interrompre
                     </button>
                   </form>
                   <form action={updateCycleStatus}>
                     <input type="hidden" name="cycleId" value={cycle.id} />
                     <input type="hidden" name="status" value="cloture" />
-                    <button
-                      type="submit"
-                      className="text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
+                    <button type="submit" className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
                       Clôturer
                     </button>
                   </form>
                 </>
-              ) : (
+              ) : cycle.status === "archive" ? (
                 <form action={updateCycleStatus}>
                   <input type="hidden" name="cycleId" value={cycle.id} />
                   <input type="hidden" name="status" value="en_cours" />
+                  <button type="submit" className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50">
+                    Désarchiver
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <form action={updateCycleStatus}>
+                    <input type="hidden" name="cycleId" value={cycle.id} />
+                    <input type="hidden" name="status" value="en_cours" />
+                    <button type="submit" className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50">
+                      Reprendre
+                    </button>
+                  </form>
+                  <form action={updateCycleStatus}>
+                    <input type="hidden" name="cycleId" value={cycle.id} />
+                    <input type="hidden" name="status" value="archive" />
+                    <button type="submit" className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
+                      Archiver
+                    </button>
+                  </form>
+                </>
+              )}
+
+              {cycle.status !== "en_cours" && (
+                <form action={deleteCycle}>
+                  <input type="hidden" name="cycleId" value={cycle.id} />
                   <button
                     type="submit"
-                    className="text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
+                    className="w-full text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
                   >
-                    Reprendre
+                    Supprimer
                   </button>
                 </form>
               )}
@@ -243,13 +280,9 @@ export default async function CyclePage({
               </div>
               <p className="text-xs text-slate-600">
                 La signature sera générée automatiquement.
-                {cycle.currentTurn === "G-00" &&
-                  " — Après publication, tu peux clôturer le cycle."}
+                {cycle.currentTurn === "G-00" && " — Après publication, tu peux clôturer le cycle."}
               </p>
-              <button
-                type="submit"
-                className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800"
-              >
+              <button type="submit" className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800">
                 Publier la contribution
               </button>
             </form>
