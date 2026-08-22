@@ -5,6 +5,10 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 const GARDIEN_ID = "G-04";
+const TOKEN_ENV = "TOKEN_G04";
+const SERVER_NAME = "canal-inter-gardiens-g04";
+const CREATE_DESC =
+  "Publie une contribution en tant que G-04 (Copilot / SG4). Aucun token à fournir : l'identité est fixée par ce connecteur.";
 
 type JsonRpc = {
   jsonrpc?: string;
@@ -12,6 +16,32 @@ type JsonRpc = {
   method?: string;
   params?: Record<string, unknown>;
 };
+
+function nextTurnAfterAuthor(
+  order: string[],
+  authorId: string,
+  currentTurn: string
+): string {
+  if (authorId === "G-00") {
+    const hoaIndex = order.indexOf("G-00");
+    if (hoaIndex >= 0 && hoaIndex < order.length - 1) {
+      return order[hoaIndex + 1];
+    }
+    return "G-00";
+  }
+  const authorIndex = order.indexOf(authorId);
+  if (authorIndex >= 0 && authorIndex < order.length - 1) {
+    return order[authorIndex + 1];
+  }
+  if (authorIndex === order.length - 1) {
+    return "G-00";
+  }
+  const currentIndex = order.indexOf(currentTurn);
+  if (currentIndex >= 0 && currentIndex < order.length - 1) {
+    return order[currentIndex + 1];
+  }
+  return "G-00";
+}
 
 async function listCycles(status?: string) {
   return prisma.cycle.findMany({
@@ -60,8 +90,8 @@ async function createContributionAsGardien(args: {
   cycleId: string;
   content: string;
 }) {
-  if (!process.env.TOKEN_G04) {
-    throw new Error("TOKEN_G04 non configuré côté serveur");
+  if (!process.env[TOKEN_ENV]) {
+    throw new Error(`${TOKEN_ENV} non configuré côté serveur`);
   }
 
   const cycle = await prisma.cycle.findUnique({ where: { id: args.cycleId } });
@@ -71,7 +101,9 @@ async function createContributionAsGardien(args: {
   const author = await prisma.user.findUnique({
     where: { gardienId: GARDIEN_ID },
   });
-  if (!author || !author.isActive) throw new Error("G-04 inconnu ou inactif");
+  if (!author || !author.isActive) {
+    throw new Error(`${GARDIEN_ID} inconnu ou inactif`);
+  }
 
   const count = await prisma.contribution.count({
     where: { cycleId: args.cycleId },
@@ -93,13 +125,11 @@ async function createContributionAsGardien(args: {
   });
 
   const order: string[] = JSON.parse(cycle.order);
-  let nextTurn = cycle.currentTurn;
-  const currentIndex = order.indexOf(cycle.currentTurn);
-  if (currentIndex >= 0 && currentIndex < order.length - 1) {
-    nextTurn = order[currentIndex + 1];
-  } else {
-    nextTurn = "G-00";
-  }
+  const nextTurn = nextTurnAfterAuthor(
+    order,
+    GARDIEN_ID,
+    cycle.currentTurn
+  );
 
   await prisma.cycle.update({
     where: { id: args.cycleId },
@@ -143,8 +173,7 @@ const tools = [
   },
   {
     name: "create_contribution",
-    description:
-      "Publie une contribution en tant que G-04 (Copilot). Aucun token à fournir : l'identité est fixée par ce connecteur.",
+    description: CREATE_DESC,
     inputSchema: {
       type: "object",
       properties: {
@@ -162,7 +191,11 @@ export async function POST(request: Request) {
     rpc = await request.json();
   } catch {
     return NextResponse.json(
-      { jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null },
+      {
+        jsonrpc: "2.0",
+        error: { code: -32700, message: "Parse error" },
+        id: null,
+      },
       { status: 400 }
     );
   }
@@ -176,7 +209,7 @@ export async function POST(request: Request) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "canal-inter-gardiens-g04", version: "0.2.0" },
+        serverInfo: { name: SERVER_NAME, version: "0.3.0" },
       },
     });
   }

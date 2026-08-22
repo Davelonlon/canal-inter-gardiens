@@ -9,6 +9,32 @@ function getExpectedToken(gardienId: string): string | undefined {
   return process.env[key];
 }
 
+function nextTurnAfterAuthor(
+  order: string[],
+  authorId: string,
+  currentTurn: string
+): string {
+  if (authorId === "G-00") {
+    const hoaIndex = order.indexOf("G-00");
+    if (hoaIndex >= 0 && hoaIndex < order.length - 1) {
+      return order[hoaIndex + 1];
+    }
+    return "G-00";
+  }
+  const authorIndex = order.indexOf(authorId);
+  if (authorIndex >= 0 && authorIndex < order.length - 1) {
+    return order[authorIndex + 1];
+  }
+  if (authorIndex === order.length - 1) {
+    return "G-00";
+  }
+  const currentIndex = order.indexOf(currentTurn);
+  if (currentIndex >= 0 && currentIndex < order.length - 1) {
+    return order[currentIndex + 1];
+  }
+  return "G-00";
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -81,18 +107,7 @@ export async function POST(
   });
 
   const order: string[] = JSON.parse(cycle.order);
-  let nextTurn = cycle.currentTurn;
-
-  if (gardienId === "G-00") {
-    nextTurn = order[0] || "G-00";
-  } else {
-    const currentIndex = order.indexOf(cycle.currentTurn);
-    if (currentIndex >= 0 && currentIndex < order.length - 1) {
-      nextTurn = order[currentIndex + 1];
-    } else {
-      nextTurn = "G-00";
-    }
-  }
+  const nextTurn = nextTurnAfterAuthor(order, gardienId, cycle.currentTurn);
 
   await prisma.cycle.update({
     where: { id: cycleId },

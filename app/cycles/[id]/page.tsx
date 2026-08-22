@@ -41,13 +41,25 @@ async function addContribution(formData: FormData) {
   let nextTurn = cycle.currentTurn;
 
   if (authorGardienId === "G-00") {
-    nextTurn = order[0] || "G-00";
-  } else {
-    const currentIndex = order.indexOf(cycle.currentTurn);
-    if (currentIndex >= 0 && currentIndex < order.length - 1) {
-      nextTurn = order[currentIndex + 1];
+    const hoaIndex = order.indexOf("G-00");
+    if (hoaIndex >= 0 && hoaIndex < order.length - 1) {
+      nextTurn = order[hoaIndex + 1];
     } else {
       nextTurn = "G-00";
+    }
+  } else {
+    const authorIndex = order.indexOf(authorGardienId);
+    if (authorIndex >= 0 && authorIndex < order.length - 1) {
+      nextTurn = order[authorIndex + 1];
+    } else if (authorIndex === order.length - 1) {
+      nextTurn = "G-00";
+    } else {
+      const currentIndex = order.indexOf(cycle.currentTurn);
+      if (currentIndex >= 0 && currentIndex < order.length - 1) {
+        nextTurn = order[currentIndex + 1];
+      } else {
+        nextTurn = "G-00";
+      }
     }
   }
 
@@ -156,200 +168,4 @@ export default async function CyclePage({
                 </code>
               </div>
 
-              <div className="flex flex-wrap gap-2 mt-2">
-                {order.map((gardienId, index) => {
-                  const isCurrent = gardienId === cycle.currentTurn;
-                  const currentIndex = order.indexOf(cycle.currentTurn);
-                  const isPast = currentIndex > index;
-                  return (
-                    <span
-                      key={gardienId}
-                      className={
-                        isCurrent
-                          ? "text-xs px-2.5 py-1 rounded-full bg-slate-900 text-white font-medium"
-                          : isPast
-                          ? "text-xs px-2.5 py-1 rounded-full bg-slate-200 text-slate-500"
-                          : "text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700"
-                      }
-                    >
-                      {index + 1}. {toAoaId(gardienId)}
-                    </span>
-                  );
-                })}
-                {cycle.currentTurn === "G-00" && (
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-green-700 text-white font-medium">
-                    HOA (avis de sortie)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 shrink-0">
-              {cycle.status === "en_cours" ? (
-                <>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="interrompu" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50"
-                    >
-                      Interrompre
-                    </button>
-                  </form>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="cloture" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    >
-                      Clôturer
-                    </button>
-                  </form>
-                </>
-              ) : cycle.status === "archive" ? (
-                <form action={updateCycleStatus}>
-                  <input type="hidden" name="cycleId" value={cycle.id} />
-                  <input type="hidden" name="status" value="en_cours" />
-                  <button
-                    type="submit"
-                    className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
-                  >
-                    Désarchiver
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="en_cours" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
-                    >
-                      Reprendre
-                    </button>
-                  </form>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="archive" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-                    >
-                      Archiver
-                    </button>
-                  </form>
-                </>
-              )}
-
-              {cycle.status !== "en_cours" && (
-                <form action={deleteCycle}>
-                  <input type="hidden" name="cycleId" value={cycle.id} />
-                  <button
-                    type="submit"
-                    className="w-full text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-50"
-                  >
-                    Supprimer
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4 mb-8">
-          {cycle.contributions.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500">
-              Aucune contribution pour le moment.
-            </div>
-          ) : (
-            cycle.contributions.map((c) => (
-              <div
-                key={c.id}
-                className="bg-white rounded-xl border border-slate-200 p-5"
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-semibold text-slate-900">
-                    Tour {c.turnNumber} — {c.author.name} (
-                    {toAoaId(c.author.gardienId)})
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {new Date(c.createdAt).toLocaleString("fr-FR")}
-                  </span>
-                </div>
-                <div className="text-slate-700 whitespace-pre-wrap mb-4">
-                  {c.content}
-                </div>
-                <pre className="text-xs text-slate-500 bg-slate-50 p-3 rounded overflow-x-auto">
-                  {c.signature}
-                </pre>
-              </div>
-            ))
-          )}
-        </div>
-
-        {cycle.status === "en_cours" ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Nouvelle contribution
-            </h2>
-            <form action={addContribution} className="space-y-4">
-              <input type="hidden" name="cycleId" value={cycle.id} />
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">
-                  Auteur
-                </label>
-                <select
-                  name="authorGardienId"
-                  required
-                  defaultValue={cycle.currentTurn}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 bg-white"
-                >
-                  {users.map((u) => (
-                    <option key={u.id} value={u.gardienId}>
-                      {toAoaLabel(u.gardienId)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">
-                  Contenu
-                </label>
-                <textarea
-                  name="content"
-                  required
-                  rows={6}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 bg-white"
-                  placeholder={
-                    cycle.currentTurn === "G-00"
-                      ? "Avis de sortie / arbitrage HOA..."
-                      : "Écris ta contribution ici..."
-                  }
-                />
-              </div>
-              <p className="text-xs text-slate-600">
-                La signature sera générée automatiquement.
-                {cycle.currentTurn === "G-00" &&
-                  " — Après publication, tu peux clôturer le cycle."}
-              </p>
-              <button
-                type="submit"
-                className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800"
-              >
-                Publier la contribution
-              </button>
-            </form>
-          </div>
-        ) : (
-          <div className="bg-slate-100 rounded-xl border border-slate-200 p-6 text-center text-slate-700">
-            Ce cycle est <strong>{cycle.status}</strong>. Aucune nouvelle
-            contribution possible.
-          </div>
-        )}
-      </div>
-    </main>
-  );
-}
+              <div class
