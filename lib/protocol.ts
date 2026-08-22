@@ -4,7 +4,6 @@ export type GardienInfo = {
   role: string;
 };
 
-/** G-XX technique (app) → identifiant AOA (signature) */
 const AOA_IDS: Record<string, string> = {
   "G-00": "HOA",
   "G-01": "AOG1",
@@ -22,6 +21,27 @@ const AOA_ROLES: Record<string, string> = {
   "G-04": "Stargate Guardian",
   "G-05": "Autonomous Operational Guardian",
 };
+
+const AOA_NAMES: Record<string, string> = {
+  "G-00": "David",
+  "G-01": "ChatGPT",
+  "G-02": "Claude",
+  "G-03": "Gemini",
+  "G-04": "Copilot",
+  "G-05": "Grok",
+};
+
+/** Identifiant AOA pour affichage (HOA, AOG1…) */
+export function toAoaId(gardienId: string): string {
+  return AOA_IDS[gardienId] ?? gardienId;
+}
+
+/** Libellé court : "Grok — AOG3" */
+export function toAoaLabel(gardienId: string): string {
+  const id = toAoaId(gardienId);
+  const name = AOA_NAMES[gardienId];
+  return name ? `${name} — ${id}` : id;
+}
 
 function resolveIdentity(gardien: GardienInfo): {
   displayId: string;
