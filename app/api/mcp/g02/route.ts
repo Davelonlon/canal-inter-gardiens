@@ -57,6 +57,20 @@ async function listCycles(status?: string) {
   });
 }
 
+async function listMyTurns() {
+  return prisma.cycle.findMany({
+    where: { status: "en_cours", currentTurn: GARDIEN_ID },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      subject: true,
+      status: true,
+      currentTurn: true,
+      createdAt: true,
+    },
+  });
+}
+
 async function getCycle(cycleId: string) {
   const cycle = await prisma.cycle.findUnique({
     where: { id: cycleId },
@@ -83,6 +97,34 @@ async function getCycle(cycleId: string) {
       signature: c.signature,
       createdAt: c.createdAt,
     })),
+  };
+}
+
+async function createCycle(subject: string, orderRaw: string) {
+  const orderArray = orderRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (orderArray.length === 0) throw new Error("order vide");
+
+  const cycle = await prisma.cycle.create({
+    data: {
+      subject: subject.trim(),
+      createdBy: GARDIEN_ID,
+      order: JSON.stringify(orderArray),
+      currentTurn: orderArray[0],
+      status: "en_cours",
+      updatedAt: new Date(),
+    },
+  });
+
+  return {
+    ok: true,
+    id: cycle.id,
+    subject: cycle.subject,
+    order: orderArray,
+    currentTurn: cycle.currentTurn,
+    url: `https://canal-inter-gardiens-2dhi.vercel.app/cycles/${cycle.id}`,
   };
 }
 
@@ -160,6 +202,12 @@ const tools = [
     },
   },
   {
+    name: "list_my_turns",
+    description:
+      "Liste les cycles en_cours où c'est le tour de ce Gardien (currentTurn = identité du connecteur).",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
     name: "get_cycle",
     description:
       "Lit l'état d'un cycle inter-Gardiens (sujet, statut, tour actuel, contributions).",
@@ -169,6 +217,22 @@ const tools = [
         cycleId: { type: "string", description: "Identifiant du cycle" },
       },
       required: ["cycleId"],
+    },
+  },
+  {
+    name: "create_cycle",
+    description:
+      "Crée un nouveau cycle. order = G-XX séparés par des virgules (ex: G-02,G-05,G-01).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        subject: { type: "string" },
+        order: {
+          type: "string",
+          description: "Ex: G-02,G-05,G-01",
+        },
+      },
+      required: ["subject", "order"],
     },
   },
   {
@@ -209,7 +273,7 @@ export async function POST(request: Request) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: SERVER_NAME, version: "0.3.0" },
+        serverInfo: { name: SERVER_NAME, version: "0.4.0" },
       },
     });
   }
@@ -242,6 +306,17 @@ export async function POST(request: Request) {
         });
       }
 
+      if (name === "list_my_turns") {
+        const data = await listMyTurns();
+        return NextResponse.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          },
+        });
+      }
+
       if (name === "get_cycle") {
         const data = await getCycle(args.cycleId);
         if (!data) {
@@ -259,6 +334,17 @@ export async function POST(request: Request) {
           id,
           result: {
             content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+          },
+        });
+      }
+
+      if (name === "create_cycle") {
+        const result = await createCycle(args.subject, args.order);
+        return NextResponse.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
           },
         });
       }

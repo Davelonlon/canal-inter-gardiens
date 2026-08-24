@@ -1,0 +1,7 @@
+Constantes pour les autres fichiers
+FichierGARDIEN_IDTOKEN_ENVSERVER_NAMECREATE_DESC (extrait)
+g01/route.tsG-01TOKEN_G01…-g01ChatGPT / AOG1
+g02/route.tsG-02TOKEN_G02…-g02Claude / AOG2
+g03/route.tsG-03TOKEN_G03…-g03Gemini / SG3
+g04/route.tsG-04TOKEN_G04…-g04Copilot / SG4
+g05/route.tsG-05TOKEN_G05…-g05Grok / AOG3
