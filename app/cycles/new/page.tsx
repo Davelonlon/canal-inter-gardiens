@@ -43,9 +43,14 @@ async function createCycle(formData: FormData) {
   }
 
   const fac =
-    facilitatorId && orderArray.includes(facilitatorId)
+    facilitatorId && selected.includes(facilitatorId)
       ? facilitatorId
       : orderArray.find((id) => id !== "G-00") || orderArray[0];
+
+  const depotDeadline =
+    type === "deliberation"
+      ? new Date(Date.now() + 48 * 60 * 60 * 1000)
+      : null;
 
   const cycle = await prisma.cycle.create({
     data: {
@@ -58,6 +63,7 @@ async function createCycle(formData: FormData) {
       phase: "depot",
       facilitatorId: fac,
       turnRound: 1,
+      depotDeadline,
       updatedAt: new Date(),
     },
   });
@@ -70,7 +76,9 @@ export default function NewCyclePage() {
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-xl mx-auto">
         <h1 className="text-3xl font-bold text-slate-900 mb-2">Nouveau cycle</h1>
-        <p className="text-slate-600 mb-8">Module A (délibération) ou B (chat)</p>
+        <p className="text-slate-600 mb-8">
+          Module A (délibération) ou B (chat) — timeout dépôt 48 h en A
+        </p>
 
         <form
           action={createCycle}
@@ -91,9 +99,14 @@ export default function NewCyclePage() {
           <div>
             <p className="text-sm font-medium text-slate-700 mb-2">Module</p>
             <label className="flex items-center gap-2 mb-2">
-              <input type="radio" name="type" value="deliberation" defaultChecked />
+              <input
+                type="radio"
+                name="type"
+                value="deliberation"
+                defaultChecked
+              />
               <span className="text-sm text-slate-900">
-                A — Délibération (aveugle, synthèse, arbitrage)
+                A — Délibération (aveugle, synthèse, arbitrage, 48 h)
               </span>
             </label>
             <label className="flex items-center gap-2">
@@ -122,7 +135,9 @@ export default function NewCyclePage() {
           </div>
 
           <div>
-            <p className="text-sm font-medium text-slate-700 mb-2">Participants</p>
+            <p className="text-sm font-medium text-slate-700 mb-2">
+              Participants
+            </p>
             <div className="space-y-2">
               {GARDIENS.map((g) => (
                 <label
@@ -151,7 +166,10 @@ export default function NewCyclePage() {
         </form>
 
         <div className="mt-6">
-          <Link href="/cycles" className="text-sm text-slate-500 hover:text-slate-800">
+          <Link
+            href="/cycles"
+            className="text-sm text-slate-500 hover:text-slate-800"
+          >
             ← Retour aux cycles
           </Link>
         </div>

@@ -32,6 +32,7 @@ model Cycle {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   contributions  Contribution[]
+  depotDeadline  DateTime?
 }
 model Contribution {
   id          String   @id @default(cuid())

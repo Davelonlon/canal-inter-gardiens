@@ -19,6 +19,7 @@ async function addContribution(formData: FormData) {
 
   const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
   if (!cycle || cycle.status !== "en_cours") return;
+  if (cycle.phase === "clos") return;
 
   const count = await prisma.contribution.count({ where: { cycleId } });
   const signature = buildSignature({
@@ -52,13 +53,13 @@ async function addContribution(formData: FormData) {
     if (authorIndex >= 0 && authorIndex < order.length - 1) {
       nextTurn = order[authorIndex + 1];
     } else if (authorIndex === order.length - 1) {
-      nextTurn = "G-00";
+      nextTurn = cycle.facilitatorId || "G-00";
     } else {
       const currentIndex = order.indexOf(cycle.currentTurn);
       if (currentIndex >= 0 && currentIndex < order.length - 1) {
         nextTurn = order[currentIndex + 1];
       } else {
-        nextTurn = "G-00";
+        nextTurn = cycle.facilitatorId || "G-00";
       }
     }
   }
@@ -71,6 +72,54 @@ async function addContribution(formData: FormData) {
   redirect(`/cycles/${cycleId}`);
 }
 
+async function setPhase(formData: FormData) {
+  "use server";
+  const cycleId = formData.get("cycleId") as string;
+  const phase = formData.get("phase") as string;
+  if (!cycleId || !["depot", "synthese", "arbitrage", "clos"].includes(phase))
+    return;
+
+  const data: { phase: string; currentTurn?: string; status?: string } = {
+    phase,
+  };
+  if (phase === "synthese") {
+    const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
+    data.currentTurn = cycle?.facilitatorId || "G-00";
+  }
+  if (phase === "arbitrage") {
+    data.currentTurn = "G-00";
+  }
+  if (phase === "clos") {
+    data.status = "cloture";
+  }
+
+  await prisma.cycle.update({ where: { id: cycleId }, data });
+  redirect(`/cycles/${cycleId}`);
+}
+
+async function startRound2(formData: FormData) {
+  "use server";
+  const cycleId = formData.get("cycleId") as string;
+  if (!cycleId) return;
+  const cycle = await prisma.cycle.findUnique({ where: { id: cycleId } });
+  if (!cycle || (cycle.turnRound ?? 1) >= 2) return;
+
+  const order: string[] = JSON.parse(cycle.order);
+  const depotDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+  await prisma.cycle.update({
+    where: { id: cycleId },
+    data: {
+      turnRound: 2,
+      phase: "depot",
+      currentTurn: order[0] || "G-00",
+      status: "en_cours",
+      depotDeadline,
+    },
+  });
+  redirect(`/cycles/${cycleId}`);
+}
+
 async function updateCycleStatus(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -80,7 +129,6 @@ async function updateCycleStatus(formData: FormData) {
     !["cloture", "interrompu", "en_cours", "archive"].includes(newStatus)
   )
     return;
-
   await prisma.cycle.update({
     where: { id: cycleId },
     data: { status: newStatus },
@@ -92,10 +140,24 @@ async function deleteCycle(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
   if (!cycleId) return;
-
   await prisma.contribution.deleteMany({ where: { cycleId } });
   await prisma.cycle.delete({ where: { id: cycleId } });
   redirect("/cycles");
+}
+
+function formatDeadline(deadline: Date | null): {
+  label: string;
+  expired: boolean;
+} {
+  if (!deadline) return { label: "—", expired: false };
+  const ms = deadline.getTime() - Date.now();
+  if (ms <= 0) return { label: "Timeout dépassé", expired: true };
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return {
+    label: `${h} h ${m} min restantes`,
+    expired: false,
+  };
 }
 
 export default async function CyclePage({
@@ -121,6 +183,20 @@ export default async function CyclePage({
   });
 
   const order: string[] = JSON.parse(cycle.order);
+  const type = cycle.type || "deliberation";
+  const phase = cycle.phase || "depot";
+  const turnRound = cycle.turnRound ?? 1;
+  const isDelib = type === "deliberation";
+  const maskTexts = isDelib && phase === "depot";
+
+  const publishedIds = new Set(
+    cycle.contributions.map((c) => c.author.gardienId)
+  );
+
+  const deadlineInfo = formatDeadline(
+    cycle.depotDeadline ? new Date(cycle.depotDeadline) : null
+  );
+
   const apiUrl = `https://canal-inter-gardiens-2dhi.vercel.app/api/cycles/${cycle.id}`;
 
   return (
@@ -144,16 +220,46 @@ export default async function CyclePage({
 
               <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-3">
                 <span>
+                  Module :{" "}
+                  <strong>{isDelib ? "A — Délibération" : "B — Chat"}</strong>
+                </span>
+                <span>
+                  Phase : <strong>{phase}</strong>
+                </span>
+                <span>
+                  Tour n° <strong>{turnRound}</strong>
+                </span>
+                <span>
                   Statut : <strong>{cycle.status}</strong>
                 </span>
                 <span>
                   Tour actuel :{" "}
                   <strong>{toAoaId(cycle.currentTurn)}</strong>
-                  <span className="text-slate-400 text-xs ml-1">
-                    ({cycle.currentTurn})
-                  </span>
                 </span>
+                {cycle.facilitatorId && (
+                  <span>
+                    Facilitateur :{" "}
+                    <strong>{toAoaId(cycle.facilitatorId)}</strong>
+                  </span>
+                )}
               </div>
+
+              {isDelib && phase === "depot" && (
+                <div
+                  className={
+                    deadlineInfo.expired
+                      ? "mb-3 p-3 rounded-lg border border-red-300 bg-red-50 text-red-800 text-sm"
+                      : "mb-3 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm"
+                  }
+                >
+                  Délai de dépôt : <strong>{deadlineInfo.label}</strong>
+                  {deadlineInfo.expired && (
+                    <span className="block mt-1">
+                      HOA peut forcer → Synthèse (bypass).
+                    </span>
+                  )}
+                </div>
+              )}
 
               <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="text-xs font-medium text-slate-500 mb-1">
@@ -168,35 +274,112 @@ export default async function CyclePage({
                 </code>
               </div>
 
-              <div className="flex flex-wrap gap-2 mt-2">
-                {order.map((gardienId, index) => {
-                  const isCurrent = gardienId === cycle.currentTurn;
-                  const currentIndex = order.indexOf(cycle.currentTurn);
-                  const isPast = currentIndex > index;
+              {/* Voyants rouge / vert */}
+              <p className="text-xs font-medium text-slate-500 mb-2">
+                Publications (ce cycle)
+              </p>
+              <div className="flex flex-wrap gap-3 mb-2">
+                {order.map((gardienId) => {
+                  const done = publishedIds.has(gardienId);
                   return (
-                    <span
+                    <div
                       key={gardienId}
                       className={
-                        isCurrent
-                          ? "text-xs px-2.5 py-1 rounded-full bg-slate-900 text-white font-medium"
-                          : isPast
-                          ? "text-xs px-2.5 py-1 rounded-full bg-slate-200 text-slate-500"
-                          : "text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700"
+                        done
+                          ? "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-green-500 bg-green-50"
+                          : "flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-red-400 bg-red-50"
                       }
                     >
-                      {index + 1}. {toAoaId(gardienId)}
-                    </span>
+                      <span
+                        className={
+                          done
+                            ? "h-3 w-3 rounded-full bg-green-500"
+                            : "h-3 w-3 rounded-full bg-red-500"
+                        }
+                      />
+                      <span
+                        className={
+                          done
+                            ? "text-sm font-medium text-green-900"
+                            : "text-sm font-medium text-red-900"
+                        }
+                      >
+                        {toAoaId(gardienId)}
+                      </span>
+                      <span
+                        className={
+                          done ? "text-xs text-green-700" : "text-xs text-red-700"
+                        }
+                      >
+                        {done ? "publié" : "en attente"}
+                      </span>
+                    </div>
                   );
                 })}
-                {cycle.currentTurn === "G-00" && (
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-green-700 text-white font-medium">
-                    HOA (avis de sortie)
-                  </span>
-                )}
               </div>
+
+              {maskTexts && (
+                <p className="text-xs text-amber-700 mt-2">
+                  Mode A — phase dépôt : textes masqués entre Gardiens. HOA
+                  force la suite via les boutons de phase.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 shrink-0">
+              {cycle.status === "en_cours" && isDelib && (
+                <>
+                  {phase === "depot" && (
+                    <form action={setPhase}>
+                      <input type="hidden" name="cycleId" value={cycle.id} />
+                      <input type="hidden" name="phase" value="synthese" />
+                      <button
+                        type="submit"
+                        className="w-full text-sm px-3 py-1.5 rounded-lg border border-blue-300 text-blue-800 hover:bg-blue-50 font-medium"
+                      >
+                        → Synthèse
+                        {deadlineInfo.expired ? " (bypass)" : ""}
+                      </button>
+                    </form>
+                  )}
+                  {phase === "synthese" && (
+                    <form action={setPhase}>
+                      <input type="hidden" name="cycleId" value={cycle.id} />
+                      <input type="hidden" name="phase" value="arbitrage" />
+                      <button
+                        type="submit"
+                        className="w-full text-sm px-3 py-1.5 rounded-lg border border-blue-300 text-blue-800 hover:bg-blue-50 font-medium"
+                      >
+                        → Arbitrage
+                      </button>
+                    </form>
+                  )}
+                  {phase === "arbitrage" && turnRound < 2 && (
+                    <form action={startRound2}>
+                      <input type="hidden" name="cycleId" value={cycle.id} />
+                      <button
+                        type="submit"
+                        className="w-full text-sm px-3 py-1.5 rounded-lg border border-violet-300 text-violet-800 hover:bg-violet-50"
+                      >
+                        Lancer tour 2
+                      </button>
+                    </form>
+                  )}
+                  {phase === "arbitrage" && (
+                    <form action={setPhase}>
+                      <input type="hidden" name="cycleId" value={cycle.id} />
+                      <input type="hidden" name="phase" value="clos" />
+                      <button
+                        type="submit"
+                        className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      >
+                        Clôturer
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+
               {cycle.status === "en_cours" ? (
                 <>
                   <form action={updateCycleStatus}>
@@ -216,11 +399,11 @@ export default async function CyclePage({
                       type="submit"
                       className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
                     >
-                      Clôturer
+                      Clôturer (statut)
                     </button>
                   </form>
                 </>
-              ) : cycle.status === "archive" ? (
+              ) : (
                 <form action={updateCycleStatus}>
                   <input type="hidden" name="cycleId" value={cycle.id} />
                   <input type="hidden" name="status" value="en_cours" />
@@ -228,32 +411,9 @@ export default async function CyclePage({
                     type="submit"
                     className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
                   >
-                    Désarchiver
+                    Reprendre
                   </button>
                 </form>
-              ) : (
-                <>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="en_cours" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-green-300 text-green-700 hover:bg-green-50"
-                    >
-                      Reprendre
-                    </button>
-                  </form>
-                  <form action={updateCycleStatus}>
-                    <input type="hidden" name="cycleId" value={cycle.id} />
-                    <input type="hidden" name="status" value="archive" />
-                    <button
-                      type="submit"
-                      className="w-full text-sm px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
-                    >
-                      Archiver
-                    </button>
-                  </form>
-                </>
               )}
 
               {cycle.status !== "en_cours" && (
@@ -291,18 +451,26 @@ export default async function CyclePage({
                     {new Date(c.createdAt).toLocaleString("fr-FR")}
                   </span>
                 </div>
-                <div className="text-slate-700 whitespace-pre-wrap mb-4">
-                  {c.content}
-                </div>
-                <pre className="text-xs text-slate-500 bg-slate-50 p-3 rounded overflow-x-auto">
-                  {c.signature}
-                </pre>
+                {!maskTexts ? (
+                  <>
+                    <div className="text-slate-700 whitespace-pre-wrap mb-4">
+                      {c.content}
+                    </div>
+                    <pre className="text-xs text-slate-500 bg-slate-50 p-3 rounded overflow-x-auto">
+                      {c.signature}
+                    </pre>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-500 italic bg-slate-50 p-3 rounded">
+                    Contenu masqué jusqu&apos;à la phase synthèse.
+                  </div>
+                )}
               </div>
             ))
           )}
         </div>
 
-        {cycle.status === "en_cours" ? (
+        {cycle.status === "en_cours" && phase !== "clos" ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">
               Nouvelle contribution
@@ -335,30 +503,21 @@ export default async function CyclePage({
                   required
                   rows={6}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 bg-white"
-                  placeholder={
-                    cycle.currentTurn === "G-00"
-                      ? "Avis de sortie / arbitrage HOA..."
-                      : "Écris ta contribution ici..."
-                  }
+                  placeholder="Écris ta contribution ici..."
                 />
               </div>
-              <p className="text-xs text-slate-600">
-                La signature sera générée automatiquement.
-                {cycle.currentTurn === "G-00" &&
-                  " — Après publication, tu peux clôturer le cycle."}
-              </p>
               <button
                 type="submit"
                 className="w-full bg-slate-900 text-white py-2.5 rounded-lg hover:bg-slate-800"
               >
-                Publier la contribution
+                Publier
               </button>
             </form>
           </div>
         ) : (
           <div className="bg-slate-100 rounded-xl border border-slate-200 p-6 text-center text-slate-700">
-            Ce cycle est <strong>{cycle.status}</strong>. Aucune nouvelle
-            contribution possible.
+            Cycle <strong>{cycle.status}</strong> / phase{" "}
+            <strong>{phase}</strong>.
           </div>
         )}
       </div>
