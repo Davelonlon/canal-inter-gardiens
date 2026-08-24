@@ -19,18 +19,20 @@ model User {
 }
 
 model Cycle {
-  id          String   @id @default(cuid())
-  subject     String
-  status      String   @default("en_cours")
-  createdBy   String
-  order       String
-  currentTurn String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  contributions Contribution[]
+  id             String   @id @default(cuid())
+  subject        String
+  status         String   @default("en_cours")
+  currentTurn    String
+  order          String
+  createdBy      String
+  type           String   @default("deliberation") // deliberation | chat
+  phase          String   @default("depot")        // depot | synthese | arbitrage | clos
+  facilitatorId  String?  // G-XX
+  turnRound      Int      @default(1)              // 1 ou 2
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contributions  Contribution[]
 }
-
 model Contribution {
   id          String   @id @default(cuid())
   cycleId     String
