@@ -148,7 +148,8 @@ async function deleteCycle(formData: FormData) {
 function formatDeadline(deadline: Date | null): {
   label: string;
   expired: boolean;
-} {
+} 
+{
   if (!deadline) return { label: "—", expired: false };
   const ms = deadline.getTime() - Date.now();
   if (ms <= 0) return { label: "Timeout dépassé", expired: true };
@@ -243,7 +244,12 @@ export default async function CyclePage({
                   </span>
                 )}
               </div>
-
+{!isDelib && (
+  <div className="mb-3 p-3 rounded-lg border border-sky-200 bg-sky-50 text-sky-900 text-sm">
+    Module B — Chat : contributions visibles en direct. Pas d’arbitrage
+    obligatoire à chaque message. Clôture quand le but est atteint.
+  </div>
+)}
               {isDelib && phase === "depot" && (
                 <div
                   className={
