@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/cron/aog3-turns?secret=CanalGardiens2026Aog3Cron!x9",
+      "path": "/api/cron/aog3",
       "schedule": "*/5 * * * *"
     }
   ]
