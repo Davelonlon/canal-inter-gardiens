@@ -1,10 +1,22 @@
+// ============================================================
+// BLOC 1 — IMPORTS
+// ============================================================
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { buildSignature, toAoaId, toAoaLabel } from "@/lib/protocol";
+import {
+  buildSignature,
+  buildSignatureMinimal,
+  toAoaId,
+  toAoaLabel,
+} from "@/lib/protocol";
 
 export const dynamic = "force-dynamic";
 
+// ============================================================
+// BLOC 2 — PUBLIER UNE CONTRIBUTION (UNE SEULE FOIS)
+// Module A = signature complète | Module B = signature courte
+// ============================================================
 async function addContribution(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -22,11 +34,17 @@ async function addContribution(formData: FormData) {
   if (cycle.phase === "clos") return;
 
   const count = await prisma.contribution.count({ where: { cycleId } });
-  const signature = buildSignature({
+
+  const gardienInfo = {
     name: author.name,
     gardienId: author.gardienId,
     role: author.role,
-  });
+  };
+
+  const signature =
+    cycle.type === "chat"
+      ? buildSignatureMinimal(gardienInfo)
+      : buildSignature(gardienInfo);
 
   await prisma.contribution.create({
     data: {
@@ -38,6 +56,7 @@ async function addContribution(formData: FormData) {
     },
   });
 
+  // --- Avancer le tour ---
   const order: string[] = JSON.parse(cycle.order);
   let nextTurn = cycle.currentTurn;
 
@@ -72,6 +91,9 @@ async function addContribution(formData: FormData) {
   redirect(`/cycles/${cycleId}`);
 }
 
+// ============================================================
+// BLOC 3 — CHANGER DE PHASE (Module A : depot → synthese → …)
+// ============================================================
 async function setPhase(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -97,6 +119,9 @@ async function setPhase(formData: FormData) {
   redirect(`/cycles/${cycleId}`);
 }
 
+// ============================================================
+// BLOC 4 — LANCER LE TOUR 2 (Module A, max 2 tours)
+// ============================================================
 async function startRound2(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -120,6 +145,9 @@ async function startRound2(formData: FormData) {
   redirect(`/cycles/${cycleId}`);
 }
 
+// ============================================================
+// BLOC 5 — STATUT DU CYCLE (interrompre / clôturer / reprendre)
+// ============================================================
 async function updateCycleStatus(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -136,6 +164,9 @@ async function updateCycleStatus(formData: FormData) {
   redirect(`/cycles/${cycleId}`);
 }
 
+// ============================================================
+// BLOC 6 — SUPPRIMER LE CYCLE
+// ============================================================
 async function deleteCycle(formData: FormData) {
   "use server";
   const cycleId = formData.get("cycleId") as string;
@@ -145,11 +176,13 @@ async function deleteCycle(formData: FormData) {
   redirect("/cycles");
 }
 
+// ============================================================
+// BLOC 7 — AFFICHAGE DU DÉLAI 48 H
+// ============================================================
 function formatDeadline(deadline: Date | null): {
   label: string;
   expired: boolean;
-} 
-{
+} {
   if (!deadline) return { label: "—", expired: false };
   const ms = deadline.getTime() - Date.now();
   if (ms <= 0) return { label: "Timeout dépassé", expired: true };
@@ -161,6 +194,9 @@ function formatDeadline(deadline: Date | null): {
   };
 }
 
+// ============================================================
+// BLOC 8 — PAGE (ce que tu vois à l’écran)
+// ============================================================
 export default async function CyclePage({
   params,
 }: {
@@ -203,6 +239,7 @@ export default async function CyclePage({
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-3xl mx-auto">
+        {/* --- Lien retour --- */}
         <div className="mb-6">
           <Link
             href="/cycles"
@@ -212,6 +249,7 @@ export default async function CyclePage({
           </Link>
         </div>
 
+        {/* --- En-tête cycle --- */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <div className="flex justify-between items-start gap-4">
             <div className="min-w-0 flex-1">
@@ -219,6 +257,7 @@ export default async function CyclePage({
                 {cycle.subject}
               </h1>
 
+              {/* Infos Module / Phase / Tour */}
               <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-3">
                 <span>
                   Module :{" "}
@@ -244,12 +283,17 @@ export default async function CyclePage({
                   </span>
                 )}
               </div>
-{!isDelib && (
-  <div className="mb-3 p-3 rounded-lg border border-sky-200 bg-sky-50 text-sky-900 text-sm">
-    Module B — Chat : contributions visibles en direct. Pas d’arbitrage
-    obligatoire à chaque message. Clôture quand le but est atteint.
-  </div>
-)}
+
+              {/* Bandeau Module B (chat) */}
+              {!isDelib && (
+                <div className="mb-3 p-3 rounded-lg border border-sky-200 bg-sky-50 text-sky-900 text-sm">
+                  Module B — Chat : contributions visibles en direct. Pas
+                  d&apos;arbitrage obligatoire à chaque message. Clôture quand
+                  le but est atteint.
+                </div>
+              )}
+
+              {/* Bandeau timeout Module A */}
               {isDelib && phase === "depot" && (
                 <div
                   className={
@@ -267,6 +311,7 @@ export default async function CyclePage({
                 </div>
               )}
 
+              {/* ID + API */}
               <div className="mb-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="text-xs font-medium text-slate-500 mb-1">
                   ID du cycle
@@ -314,7 +359,9 @@ export default async function CyclePage({
                       </span>
                       <span
                         className={
-                          done ? "text-xs text-green-700" : "text-xs text-red-700"
+                          done
+                            ? "text-xs text-green-700"
+                            : "text-xs text-red-700"
                         }
                       >
                         {done ? "publié" : "en attente"}
@@ -332,6 +379,7 @@ export default async function CyclePage({
               )}
             </div>
 
+            {/* --- Boutons HOA (droite) --- */}
             <div className="flex flex-col gap-2 shrink-0">
               {cycle.status === "en_cours" && isDelib && (
                 <>
@@ -437,6 +485,7 @@ export default async function CyclePage({
           </div>
         </div>
 
+        {/* --- Liste des contributions --- */}
         <div className="space-y-4 mb-8">
           {cycle.contributions.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500">
@@ -476,6 +525,7 @@ export default async function CyclePage({
           )}
         </div>
 
+        {/* --- Formulaire nouvelle contribution --- */}
         {cycle.status === "en_cours" && phase !== "clos" ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">

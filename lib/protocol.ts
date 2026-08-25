@@ -1,9 +1,15 @@
+// ============================================================
+// BLOC 1 — TYPE COMMUN
+// ============================================================
 export type GardienInfo = {
   name: string;
   gardienId: string;
   role: string;
 };
 
+// ============================================================
+// BLOC 2 — TABLES DE CORRESPONDANCE G-XX → AOA
+// ============================================================
 const AOA_IDS: Record<string, string> = {
   "G-00": "HOA",
   "G-01": "AOG1",
@@ -31,18 +37,24 @@ const AOA_NAMES: Record<string, string> = {
   "G-05": "Grok",
 };
 
-/** Identifiant AOA pour affichage (HOA, AOG1…) */
+// ============================================================
+// BLOC 3 — AFFICHAGE (libellés UI)
+// ============================================================
+/** Ex. G-05 → "AOG3" */
 export function toAoaId(gardienId: string): string {
   return AOA_IDS[gardienId] ?? gardienId;
 }
 
-/** Libellé court : "Grok — AOG3" */
+/** Ex. G-05 → "Grok — AOG3" */
 export function toAoaLabel(gardienId: string): string {
   const id = toAoaId(gardienId);
   const name = AOA_NAMES[gardienId];
   return name ? `${name} — ${id}` : id;
 }
 
+// ============================================================
+// BLOC 4 — AIDE INTERNE (pas exportée)
+// ============================================================
 function resolveIdentity(gardien: GardienInfo): {
   displayId: string;
   displayRole: string;
@@ -53,6 +65,9 @@ function resolveIdentity(gardien: GardienInfo): {
   };
 }
 
+// ============================================================
+// BLOC 5 — SIGNATURE COMPLÈTE (Module A — délibération)
+// ============================================================
 export function buildSignature(
   gardien: GardienInfo,
   nature: string = "contribution"
@@ -69,7 +84,21 @@ Niveau de confiance : élevé
 Signature : ${gardien.name} — ${displayId}`;
 }
 
-export function getNextTurn(order: string[], currentTurn: string): string | null {
+// ============================================================
+// BLOC 6 — SIGNATURE COURTE (Module B — chat)
+// ============================================================
+export function buildSignatureMinimal(gardien: GardienInfo): string {
+  const displayId = toAoaId(gardien.gardienId);
+  return `— ${gardien.name} — ${displayId}`;
+}
+
+// ============================================================
+// BLOC 7 — TOUR SUIVANT DANS L’ORDRE
+// ============================================================
+export function getNextTurn(
+  order: string[],
+  currentTurn: string
+): string | null {
   const index = order.indexOf(currentTurn);
   if (index === -1 || index === order.length - 1) return null;
   return order[index + 1];
