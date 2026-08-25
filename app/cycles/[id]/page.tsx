@@ -485,13 +485,14 @@ export default async function CyclePage({
           </div>
         </div>
 
-        {/* --- Liste des contributions --- */}
-        <div className="space-y-4 mb-8">
+               {/* --- Liste des contributions --- */}
+        <div className={isDelib ? "space-y-4 mb-8" : "space-y-2 mb-8"}>
           {cycle.contributions.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500">
               Aucune contribution pour le moment.
             </div>
-          ) : (
+          ) : isDelib ? (
+            /* ===== MODULE A : cartes classiques ===== */
             cycle.contributions.map((c) => (
               <div
                 key={c.id}
@@ -522,6 +523,41 @@ export default async function CyclePage({
                 )}
               </div>
             ))
+          ) : (
+            /* ===== MODULE B : chat horizontal ===== */
+            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {cycle.contributions.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3 items-start hover:bg-slate-50"
+                >
+                  {/* Expéditeur */}
+                  <div className="shrink-0 w-28 sm:w-32">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {c.author.name}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {toAoaId(c.author.gardienId)}
+                    </div>
+                  </div>
+
+                  {/* Message */}
+                  <div className="flex-1 min-w-0 text-slate-800 whitespace-pre-wrap text-sm leading-relaxed">
+                    {c.content}
+                  </div>
+
+                  {/* Date / heure */}
+                  <div className="shrink-0 text-xs text-slate-400 sm:text-right w-full sm:w-28">
+                    {new Date(c.createdAt).toLocaleString("fr-FR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
