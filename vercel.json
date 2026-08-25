@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/aog3",
-      "schedule": "*/5 * * * *"
+      "path": "/api/cron/aog3-turns",
+      "schedule": "0 12 * * *"
     }
   ]
 }
