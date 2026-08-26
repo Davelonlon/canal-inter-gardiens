@@ -149,11 +149,10 @@ Rédige ta contribution de tour en tant qu'AOG3. Texte seul, sans signature.`;
     }
 
     const turnNumber = cycle.contributions.length + 1;
-    const signature = buildSignature({
+        const signature = buildSignature({
       name: author.name,
       gardienId: author.gardienId,
       role: author.role,
-      nature: "contribution",
     });
 
     await prisma.contribution.create({
