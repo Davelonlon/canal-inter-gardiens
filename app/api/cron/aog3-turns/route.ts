@@ -68,7 +68,7 @@ async function callGemini(prompt: string): Promise<
   }
 
   // Modèle stable côté Google AI Studio (ajuste si besoin)
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` +
     encodeURIComponent(apiKey.trim());
