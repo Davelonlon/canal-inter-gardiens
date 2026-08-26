@@ -243,14 +243,30 @@ async function callGemini(
 }
 
 async function generateForAog(
+async function generateForAog(
   aog: AogKey,
   displayName: string,
   subject: string,
   history: string,
-  lastLabel: string
+  lastLabel: string,
+  mode: "chat" | "deliberation" = "chat"
 ) {
-  const system = systemPrompt(aog, displayName);
-  const user = `Canal Module B — sujet : « ${subject} »
+  const system =
+    mode === "deliberation"
+      ? systemPromptDeliberation(aog, displayName)
+      : systemPrompt(aog, displayName);
+
+  const user =
+    mode === "deliberation"
+      ? `Module A — phase dépôt.
+Sujet : « ${subject} »
+
+Contexte récent (peut être partiel si masquage) :
+${history || "(aucune contribution visible)"}
+
+Dernier auteur : ${lastLabel}.
+Dépose ton avis de fond en tant que ${aog} (texte seul, sans signature).`
+      : `Canal Module B — sujet : « ${subject} »
 
 Derniers messages :
 ${history || "(aucune contribution)"}
@@ -258,17 +274,11 @@ ${history || "(aucune contribution)"}
 Dernier auteur : ${lastLabel}.
 Rédige ta réponse en tant que ${aog} (texte seul, sans signature).`;
 
-  // Pour l’instant : Gemini pour AOG1, AOG2 et AOG3
-  // (crédits OpenAI / Anthropic épuisés ou absents)
-  const useNative =
-    process.env.AOG_NATIVE_APIS === "1"; // optionnel plus tard
-
+  const useNative = process.env.AOG_NATIVE_APIS === "1";
   if (useNative && aog === "AOG1") return callOpenAI(system, user);
   if (useNative && aog === "AOG2") return callAnthropic(system, user);
-
   return callGemini(system, user);
 }
-
 async function processCycle(cycleId: string) {
   const cycle = await prisma.cycle.findUnique({
     where: { id: cycleId },
@@ -300,14 +310,19 @@ async function processCycle(cycleId: string) {
   }
 
   const type = cycle.type || "deliberation";
+  const phase = (cycle as { phase?: string | null }).phase || "depot";
+
+  // Module A : auto seulement en phase dépôt
   if (type !== "chat") {
-    return {
-      cycleId,
-      subject: cycle.subject,
-      action: "pending_manual",
-      reason: "deliberation_needs_human_or_mcp",
-      aog: meta.key,
-    };
+    if (phase !== "depot" && phase !== "" && phase != null) {
+      return {
+        cycleId,
+        subject: cycle.subject,
+        action: "pending_manual",
+        reason: `phase_${phase}_no_auto`,
+        aog: meta.key,
+      };
+    }
   }
 
   const recent = cycle.contributions.slice(-3);
@@ -321,7 +336,8 @@ async function processCycle(cycleId: string) {
     meta.name,
     cycle.subject,
     history,
-    lastLabel
+    lastLabel,
+    type === "chat" ? "chat" : "deliberation"
   );
   if (!gen.ok) {
     return {
@@ -422,4 +438,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   return GET(req);
+}
+function systemPromptDeliberation(aog: AogKey, displayName: string): string {
+  return `Tu es ${aog} (${displayName}), Autonomous Operational Guardian de la Convention (AOA).
+
+Contexte : Module A — délibération, phase dépôt.
+Règles :
+- Français uniquement.
+- Avis de fond structuré, clair, proportionné (environ 120–200 mots).
+- Identifiants AOA : HOA, AOG1, AOG2, AOG3.
+- Ne rédige PAS de signature (le serveur l'ajoute).
+- Ne propose pas de clôturer le cycle ni de changer de phase.
+- Ne parle pas au nom d'un autre Gardien.
+- Si le sujet pose des questions, réponds point par point.
+- Pas de flatterie, pas de remplissage.`;
 }
