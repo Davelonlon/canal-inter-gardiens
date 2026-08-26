@@ -10,6 +10,7 @@ import {
   toAoaId,
   toAoaLabel,
 } from "@/lib/protocol";
+import { LocalTime } from "@/components/LocalTime";
 
 export const dynamic = "force-dynamic";
 
@@ -192,20 +193,6 @@ function formatDeadline(deadline: Date | null): {
     label: `${h} h ${m} min restantes`,
     expired: false,
   };
-}
-function formatLocal(date: Date | string) {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("fr-CH", {
-    timeZone: "Europe/Zurich",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    timeZoneName: "short",
-  }).format(d);
 }
 
 // ============================================================
@@ -499,7 +486,7 @@ export default async function CyclePage({
           </div>
         </div>
 
-               {/* --- Liste des contributions --- */}
+        {/* --- Liste des contributions --- */}
         <div className={isDelib ? "space-y-4 mb-8" : "space-y-2 mb-8"}>
           {cycle.contributions.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-500">
@@ -518,7 +505,7 @@ export default async function CyclePage({
                     {toAoaId(c.author.gardienId)})
                   </span>
                   <span className="text-xs text-slate-400">
-                    {new Date(c.createdAt).toLocaleString("fr-FR")}
+                    <LocalTime date={c.createdAt} />
                   </span>
                 </div>
                 {!maskTexts ? (
@@ -560,14 +547,9 @@ export default async function CyclePage({
                     {c.content}
                   </div>
 
-                  {/* Date / heure */}
-                  <div className="shrink-0 text-xs text-slate-400 sm:text-right w-full sm:w-28">
-                    {new Date(c.createdAt).toLocaleString("fr-FR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  {/* Date / heure (fuseau du navigateur) */}
+                  <div className="shrink-0 text-xs text-slate-400 sm:text-right w-full sm:w-36">
+                    <LocalTime date={c.createdAt} />
                   </div>
                 </div>
               ))}
