@@ -258,8 +258,14 @@ ${history || "(aucune contribution)"}
 Dernier auteur : ${lastLabel}.
 Rédige ta réponse en tant que ${aog} (texte seul, sans signature).`;
 
-  if (aog === "AOG1") return callOpenAI(system, user);
-  if (aog === "AOG2") return callAnthropic(system, user);
+  // Pour l’instant : Gemini pour AOG1, AOG2 et AOG3
+  // (crédits OpenAI / Anthropic épuisés ou absents)
+  const useNative =
+    process.env.AOG_NATIVE_APIS === "1"; // optionnel plus tard
+
+  if (useNative && aog === "AOG1") return callOpenAI(system, user);
+  if (useNative && aog === "AOG2") return callAnthropic(system, user);
+
   return callGemini(system, user);
 }
 
