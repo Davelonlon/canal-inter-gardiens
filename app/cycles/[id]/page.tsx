@@ -193,6 +193,17 @@ function formatDeadline(deadline: Date | null): {
     expired: false,
   };
 }
+function formatLocal(date: Date | string) {
+  return new Intl.DateTimeFormat("fr-CH", {
+    timeZone: "Europe/Zurich",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(typeof date === "string" ? new Date(date) : date);
+}
 
 // ============================================================
 // BLOC 8 — PAGE (ce que tu vois à l’écran)
