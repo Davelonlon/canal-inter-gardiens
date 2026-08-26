@@ -194,6 +194,7 @@ function formatDeadline(deadline: Date | null): {
   };
 }
 function formatLocal(date: Date | string) {
+  const d = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("fr-CH", {
     timeZone: "Europe/Zurich",
     day: "2-digit",
@@ -202,7 +203,9 @@ function formatLocal(date: Date | string) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  }).format(typeof date === "string" ? new Date(date) : date);
+    hour12: false,
+    timeZoneName: "short",
+  }).format(d);
 }
 
 // ============================================================
